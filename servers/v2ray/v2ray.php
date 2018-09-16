@@ -233,20 +233,17 @@ function v2ray_CreateAccount($vars)
 function v2ray_SuspendAccount($vars)
 {
 	try {
-		if ($vars['status'] == 'Active') {
-			$ls = new \V2ray\VExtended();
-			$data = $ls->getConnect($vars['serverid']);
-			$data->runSQL(array(
-				'action' => array(
-					'suspend' => array(
-						'sql' => 'UPDATE user SET enable = 0 WHERE pid = ?',
-						'pre' => array($vars['serviceid'])
-					)
+		$ls = new \V2ray\VExtended();
+		$data = $ls->getConnect($vars['serverid']);
+		$data->runSQL(array(
+			'action' => array(
+				'suspend' => array(
+					'sql' => 'UPDATE user SET enable = 0 WHERE pid = ?',
+					'pre' => array($vars['serviceid'])
 				)
-			));
-			return 'success';
-		}
-		throw new Exception('由于产品并非激活状态，无法为你暂停此产品');
+			)
+		));
+		return 'success';
 	}
 	catch (Exception $e) {
 		logModuleCall('V2ray', explode('_', 'v2ray_SuspendAccount')[1], $vars, $e->getMessage(), $e->getTraceAsString());
@@ -256,20 +253,17 @@ function v2ray_SuspendAccount($vars)
 function v2ray_UnsuspendAccount($vars)
 {
 	try {
-		if ($vars['status'] == 'Suspended') {
-			$ls = new \V2ray\VExtended();
-			$data = $ls->getConnect($vars['serverid']);
-			$data->runSQL(array(
-				'action' => array(
-					'unsuspend' => array(
-						'sql' => 'UPDATE user SET enable = 1 WHERE pid = ?',
-						'pre' => array($vars['serviceid'])
-					)
+		$ls = new \V2ray\VExtended();
+		$data = $ls->getConnect($vars['serverid']);
+		$data->runSQL(array(
+			'action' => array(
+				'unsuspend' => array(
+					'sql' => 'UPDATE user SET enable = 1 WHERE pid = ?',
+					'pre' => array($vars['serviceid'])
 				)
-			));
-			return 'success';
-		}
-		throw new Exception('由于产品并非暂停状态，因此无法为你解除暂停');
+			)
+		));
+		return 'success';
 	}
 	catch (Exception $e) {
 		logModuleCall('V2ray', explode('_', 'v2ray_UnsuspendAccount')[1], $vars, $e->getMessage(), $e->getTraceAsString());
@@ -281,13 +275,14 @@ function v2ray_TerminateAccount($vars)
 	try {
 		switch ($vars['status']) {
 			case 'Active':
+				throw new Exception('该用户服务为激活状态，删除可能导致黑户');
 			case 'Suspended':
 				$ls = new \V2ray\VExtended();
 				$data = $ls->getConnect($vars['serverid']);
 				$data->runSQL(array(
 					'action' => array(
 						'terminate' => array(
-							'sql' => 'UPDATE user SET enable = 0 WHERE pid = ?',
+							'sql' => 'DELETE FROM user WHERE pid = ?',
 							'pre' => array($vars['serviceid'])
 						)
 					)
@@ -351,10 +346,17 @@ function v2ray_ResetTraffic($vars)
 		if ($vars['status'] == 'Active') {
 			$ls = new \V2ray\VExtended();
 			$data = $ls->getConnect($vars['serverid']);
-			$ls->productReset($data, $vars['serviceid']);
+			$data->runSQL(array(
+				'action' => array(
+					'reset' => array(
+						'sql' => 'UPDATE user SET enable = 1, u = 0, d = 0  WHERE pid = ?',
+						'pre' => array($vars['serviceid'])
+					)
+				)
+			));
 			return 'success';
 		}
-		throw new Exception('由于产品并非已激活状态，无法为你重设流量');
+		throw new Exception('产品并非已激活状态，无法重置');
 	}
 	catch (Exception $e) {
 		logModuleCall('V2ray', explode('_', 'v2ray_ResetTraffic')[1], $vars, $e->getMessage(), $e->getTraceAsString());
@@ -448,9 +450,16 @@ function v2ray_ClientArea($vars)
 				),
 				'trans' => false
 			));
+
 			if (empty($getData['user']['result'])) {
 				throw new Exception('无法从数据库中取得当前产品的信息，请检查产品是否并未处于开通状态');
 			}
+
+
+			if (!empty($_GET['method'])&&$_GET['method']=='securityReset') {
+				$ls->securityReset($db, $data, $vars);
+			}
+
 			$templates['info'] = $getData['user']['result'];
 			$templates['info']['obfs'] = preg_replace('/_compatible/m', '', $templates['info']['obfs']);
 			$templates['info']['protocol'] = preg_replace('/_compatible/m', '', $templates['info']['protocol']);

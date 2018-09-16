@@ -99,7 +99,7 @@ if (!class_exists('VExtended')) {
 						throw new \Exception('未定义需要记录的日志内容');
 					}
 					else {
-					    file_put_contents(__V2RAY__.'v2ray.log', $log);
+					    file_put_contents(__V2RAY__.'v2ray.log', $log . "\r\n", FILE_APPEND);
 						$values['description'] = 'V2ray: ' . $log;
 						$result = localAPI('logactivity', $values, (string) $this->getAdminUser());
 
@@ -186,7 +186,65 @@ if (!class_exists('VExtended')) {
 			}
 			throw new \Exception('产品 ID #' . $productID . ' 暂停失败');
 		}
-		public function productReset($data = '', $productID = '', $status)
+		
+		public function v2rayUnsuspend($data = '', $productID = '' ){
+			$data = (object) $data;
+			$productID = (int) $productID;
+			if (empty($data) || empty($productID)) {
+				throw new \Exception('未定义数据库连接或需要重置流量的产品 ID 编号');
+			}
+			$data->runSQL(array(
+				'action' => array(
+					'user' => array(
+						'sql' => 'UPDATE user SET enable=1 WHERE pid = ?',
+						'pre' => array($productID)
+					)
+				)
+			));
+			return true;
+		}
+
+		public function productUnsuspend($productID = '', $suspendReason = 'ModuleUnsuspend')
+		{
+			$values['accountid'] = (int) $productID;
+			$values['suspendreason'] = $suspendReason;
+			$result = localAPI('ModuleUnsuspend', $values, (string) $this->getAdminUser());
+			if ($result['result'] == 'success') {
+				return true;
+			}
+			throw new \Exception('产品 ID #' . $productID . ' 解除暂停失败');
+		}
+
+		public function securityReset($db = '', $data = '', $vars){
+          	$data = (object) $data;
+			if(empty($vars) || empty($data)) {
+				throw new \Exception('无法获取产品信息');
+			}
+
+			$data->runSQL(array(
+				'action' => array(
+					'v2ray' => array(
+						'sql' => 'UPDATE user SET v2ray_uuid = ? WHERE pid = ?',
+						'pre' => array($this->getRandUUID(), $vars['serviceid'])
+					)
+				)
+			));
+
+			$db->runSQL(array(
+				'action' => array(
+					'client' => array(
+						'sql' => 'UPDATE tblclients SET uuid = ? WHERE id = ?',
+						'pre' => array($this->getRandUUID(), $vars['userid'])
+					)
+				)
+			));
+          
+          	exit(json_encode([
+				  'code' => '0',
+				  'msg' => 'success'
+			  ]));
+		}
+		public function productReset($data = '', $productID = '')
 		{
 			$data = (object) $data;
 			$productID = (int) $productID;
@@ -209,16 +267,6 @@ if (!class_exists('VExtended')) {
 					)
 				)
 			));
-			if ($status == 'Active') {
-				$data->runSQL(array(
-					'action' => array(
-						'user' => array(
-							'sql' => 'UPDATE user SET enable = 1 WHERE pid = ?',
-							'pre' => array($productID)
-						)
-					)
-				));
-			}
 			return true;
 		}
 		public function getSystemURL()
